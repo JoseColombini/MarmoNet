@@ -46,13 +46,13 @@ It is composed of two devices *Node* and *Base Station*. The two of them share a
 
 The Node is the device that will be attached to the marmoset. It is a timed routine that will wakeup the Node every WAKEUP_PERIOD. When it happens, the Node will collect the data from the sensors and the IDs of the nearby Nodes.
 
-**INSERT A FIGURE HERE**
+![Node ASM](./assets/fig/ASM_Node.png)
 
 ## BS
 
 The BS is responsible to collect the data from the Node, but also sync the Node.
 
-**INSERT A FIGURE HERE**
+![BS ASM](./assets/fig/ASM_BS.png)
 
 
 ## Others elements
