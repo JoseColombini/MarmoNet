@@ -45,6 +45,7 @@ It is composed of two devices *Node* and *Base Station*. The two of them share a
 ## Node
 
 The Node is the device that will be attached to the marmoset. It is a timed routine that will wakeup the Node every WAKEUP_PERIOD. When it happens, the Node will collect the data from the sensors and the IDs of the nearby Nodes.
+
 **INSERT A FIGURE HERE**
 
 ## BS
@@ -63,12 +64,17 @@ We hope that soon we will have the app to collect the data from the BS and save 
 
 # Information
 Engineering Final Project at Escola Politecnica - USP
+
 Project Name: MarmoNet: a biotelemetry system for urban marmosets of the genus *Callithrix*
+
 Author: Jose Colombini
+
 Supervisor: Bruno Albertini (Engineer) and Erika Hings-Zaher (Biologist)
 
 [Full Text can be found here: MarmoNet]()
+
 To cite this work please use:
+
 ```
 TODO
 ```
