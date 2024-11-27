@@ -5,6 +5,37 @@ Although it target a specific set of animals we hope its design is general enoug
 
 The system was developed with a [Pulga](https://wiki.caninosloucos.org/index.php/Pulga), a Brazilian, using [pulga-riot](https://github.com/caninos-loucos/pulga-riot), based on the original [RiotOS](https://github.com/RIOT-OS/RIOT) (Hope it will be realesed without the constraints of this personalized Pulga Riot ASAP)
 
+# The Fundamentals of MarmoNet
+
+It is composed of two devices *Node* and *Base Station*. The two of them share a configuration file called [**marmonet_params.h**](), which holds the parameters to personalized the network. And a [**marmonet_structs.h**](), the later holds the basics structs of the project.
+
+## Node
+
+The Node is the device that will be attached to the marmoset. It is a timed routine that will wakeup the Node every WAKEUP_PERIOD. When it happens, the Node will collect the data from the sensors and the IDs of the nearby Nodes. Working like a RFID/proximity tag.
+
+We use BLE and it will use a broadcast topology, reducing overhead of communication between nodes, and, thus, reducing energy consumption. The broadcast will cast the ID of the marmoset and the status of the Node (FailSafe or Std) with a TDMA, allowing all the nodes to communicate to all the nodes nearby.
+
+It can be connected to a BS so it will send all the data collected to the BS, and be resynced.
+
+![Node ASM](./assets/fig/ASM_Node.png)
+
+As described by the image the Node will use bluetooth to advertise its ID and status (FailSafe or Std). This will work 
+
+## BS
+
+The BS is responsible to collect the data from the Node, but also sync the Node.
+
+![BS ASM](./assets/fig/ASM_BS.png)
+
+
+## Others elements
+
+To attached the Node to the animal it was developed a collar.
+
+We hope that soon we will have the app to collect the data from the BS and save it in the database
+
+
+
 # Installation
 
 **We strongly recommend you to read all the installation process before start**
@@ -38,28 +69,7 @@ make PORT=/dev/ttyUSB0  flash term
 Worth to remember this is specific for Pulga. Any of the compatible devices from this version of riot can be used but following the appropriate Board configuration commands (more information in [RiotOS page](https://doc.riot-os.org/getting-started.html))
 
 
-# The Fundamentals of MarmoNet
 
-It is composed of two devices *Node* and *Base Station*. The two of them share a configuration file called [**marmonet_params.h**](), which holds the parameters to personalized the network. And a [**marmonet_structs.h**](), the later holds the basics structs of the project.
-
-## Node
-
-The Node is the device that will be attached to the marmoset. It is a timed routine that will wakeup the Node every WAKEUP_PERIOD. When it happens, the Node will collect the data from the sensors and the IDs of the nearby Nodes.
-
-![Node ASM](./assets/fig/ASM_Node.png)
-
-## BS
-
-The BS is responsible to collect the data from the Node, but also sync the Node.
-
-![BS ASM](./assets/fig/ASM_BS.png)
-
-
-## Others elements
-
-To attached the Node to the animal it was developed a collar.
-
-We hope that soon we will have the app to collect the data from the BS and save it in the database
 
 
 # Information
