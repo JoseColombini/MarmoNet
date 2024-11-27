@@ -1,5 +1,5 @@
 # MarmoNet
-MarmoNet is a biotelemetry system designed to track and monitor small marmosets that lives in urban enviroment. It was specifically designed to research the behavior and life model of the animals in Instituto Butantan and USP Campus.
+MarmoNet is a biotelemetry system designed to track and monitor small marmosets that lives in urban enviroment. It was specifically designed to research the behavior and life model of the animals in Instituto Butantan and USP Campus. This project is part of a bigger project we named "Marmosets of Butantã" (free translation), it aims to enhance the knowleged of urban marmosets behavior using classical methods, Citizen Science and Biotelemetry, please follow our [Instagram](https://www.instagram.com/saguisdobutantan/)
 
 Although it target a specific set of animals we hope its design is general enough to be reused as a starting point to another project.
 
