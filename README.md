@@ -1,43 +1,41 @@
 # MarmoNet
-MarmoNet is a biotelemetry system designed to track and monitor small marmosets that lives in urban environments. It was specifically designed to study the behavior and life model of the animals in Instituto Butantan and USP Campus. This project is part of a bigger project we named "Marmosets of Butantã" (free translation from "Saguis do Butantã"). It aims to enhance the knowledge of urban marmoset behavior using classical methods, Citizen Science and Biotelemetry. Please follow our [Instagram](https://www.instagram.com/saguisdobutantan/)
 
-Marmosets are highly inteligent animals ([recently we discovered they can name themselves](https://www.theguardian.com/science/article/2024/aug/29/marmosets-behaviour-specific-names-study)), and have a great adaptability. Thus, they are ommonly found in city parks and live near people, so understanding their ecology and behavior in these new environments is a must to design healthier cities.
+MarmoNet is an advanced biotelemetry system designed to track and monitor the behavior and life models of small marmosets living in urban environments. It was specifically developed as part of the larger project "Marmosets of Butantã" (freely translated from Saguis do Butantã, please follow our [Instagram](https://www.instagram.com/saguisdobutantan/)). This initiative aims to enhance our understanding of marmoset behavior in city parks and other urban spaces. The project is a collaboration between Instituto Butantan and the USP Campus and seeks to improve knowledge about the animals' ecology and adaptability in human-dominated environments.
 
-Although it targets  a specific set of animals we hope its design is general enough to be reused as a starting point for other biotelemetry system projects.
+Marmosets are highly intelligent creatures; [recent studies have even shown that they have the ability to name themselves](https://www.theguardian.com/science/article/2024/aug/29/marmosets-behaviour-specific-names-study). They also exhibit remarkable adaptability, which is why they are commonly found in city parks and near human settlements. Understanding how these animals thrive in urban environments is crucial for designing healthier, more wildlife-friendly cities.
 
-The system was developed using [Pulga](https://wiki.caninosloucos.org/index.php/Pulga), a Brazilian MCU, projected and designed at USP. We used [pulga-riot](https://github.com/caninos-loucos/pulga-riot), based on the original [RiotOS](https://github.com/RIOT-OS/RIOT).W We plan to migrate the system to Zephyr in a near future. 
+Although the primary focus of MarmoNet is on urban marmosets, we hope that its design will serve as a foundation for other biotelemetry projects in the future. The system is intended to be flexible enough for adaptation in various research settings.
+
+The MarmoNet system was developed using [Pulga](https://wiki.caninosloucos.org/index.php/Pulga), a Brazilian microcontroller unit (MCU) created and designed at USP. It runs on [pulga-riot](https://github.com/caninos-loucos/pulga-riot), a variant based on the original [RiotOS](https://github.com/RIOT-OS/RIOT).
 
 # The Fundamentals of MarmoNet
 
-MarmoNet is Wireless Sensor Network (WSN), thus it is designed with internal nodes (devices that collect data), Bases Stations (BS), that aggregate data from the nodes, and a sink device, which will aggregate all the data from all the BSs. As you can see in the Figure, we have an internal region monitored by the Nodes, and the border is delimited by the BSs (a logical, not a physical, border), and  the data will be sent to the Aggregator, allowing the biologist to study them.
+MarmoNet is a Wireless Sensor Network (WSN) designed to monitor marmosets in urban environments. The system consists of internal nodes (devices that collect data), Base Stations (BS), which aggregate data from the nodes, and a sink device, known as the Aggregator, which collects data from all the Base Stations. As illustrated in the figure, the internal region is monitored by the nodes, and the border is defined by the Base Stations (a logical, not a physical, boundary). The aggregated data is then sent to the Aggregator, allowing biologists to study it.
 
 IMAGE TBD
 
-Since marmosets are smart it has a very low rate of recapture, so we cannot afford a system requiring battery changes or manual data recovery. This results in the described topology and a low-energy-consumption system. To reduce energy usage the system is system is synchronized, and every device wakes up at the same time to collect data and transfer it. It is a BS responsibility to resynchronize the nodes it finds, and it is the Aggregator role to sync the BSs.
+Marmosets are highly intelligent animals with a very low recapture rate. This makes it impractical to use systems that require frequent battery changes or manual data recovery. As a result, MarmoNet was designed with an energy-efficient topology. To reduce power consumption, the system is synchronized: all devices wake up at the same time to collect and transmit data. Base Stations are responsible for resynchronizing the nodes they detect, while the Aggregator synchronizes the Base Stations.
 
-MarmoNet is designed to solve the problem of use of resources in a spacial-temporal analysis, also aiming to understand the social behavior of the marmosets. Thus the data that it can collect are:
+MarmoNet also addresses the challenge of resource usage in spatiotemporal analysis while helping researchers better understand the social behavior of marmosets. The types of data MarmoNet can collect include:
 
-- RFID: each Node can detected other nodes IDs and save when it happened;
-- Barometer: measure air pressure,  allowing inference of the animal’s height;
-- Temperature;
-- Relative Air Humidity (*soon, it still has a bug*);
-- Light Sensor (TBD);
+- RFID: Each node detects other node IDs and logs when the interaction occurs.
+- Barometer: Measures air pressure, enabling inferences about the animal's height.
+- Temperature: Monitors ambient temperature.
+- Relative Air Humidity (feature coming soon, still has a bug).
+- Light Sensor (TBD).
 
-
-The MarmoNet can be configured to hace different behaviors (duty-cycles, which sensor will be used, etc) using [**marmonet_params.h**](), which holds the parameters to customize the network. And the [**marmonet_structs.h**]() holds how the data is structured in the network. Allowing for correct recovery.
-
+MarmoNet can be configured for different behaviors (e.g., duty cycles, sensor activation) using the configuration file [**marmonet_params.h**](), which holds the parameters to customize the network. Additionally, [**marmonet_structs.h**]() defines how the data is structured within the network, ensuring correct data recovery.
 
 ## Node
 
-The Node is the device that will be attached to the marmoset. It is a timed routine that will wakeup the Node every WAKEUP_PERIOD. When it happens, the Node will collect the data from the sensors and the IDs of the nearby Nodes. Functioning as an RFID/proximity tag.
 
-We use BLE and it will use a broadcast topology, reducing communication overhead between nodes, and, thus, reducing energy consumption. The broadcast will cast the ID of the marmoset and the status of the Node (FailSafe or Std) with a TDMA, allowing all nodes to communicate with nearby nodes.
+The Node is the device attached to the marmoset. It operates on a timed routine, waking up every WAKEUP_PERIOD. When activated, the Node collects data from its sensors and records the IDs of nearby nodes, functioning similarly to an RFID/proximity tag.
 
-It can be connected to a BS so it will send all the data collected to the BS, and be resynced.
+The Node uses Bluetooth Low Energy (BLE) with a broadcast topology to reduce communication overhead between nodes, thereby minimizing energy consumption. The broadcast transmits the marmoset's ID and the Node's status (either FailSafe or Std) using Time Division Multiple Access (TDMA). This allows all nodes to communicate with nearby nodes in an energy-efficient manner.
+
+The Node can connect to a Base Station (BS) to send the collected data for aggregation and resynchronization.
 
 ![Node ASM](./assets/fig/ASM_Node.png)
-
-As described by the image the Node will use bluetooth to advertise its ID and status (FailSafe or Std). This will work 
 
 ## BS
 
@@ -50,10 +48,7 @@ The BS is responsible to collect the data from the Node, sync the Nodes and acti
 
 To attach the node to the animal it was developed a collar:
 
-![BS ASM](./assets/fig/ASM_BS.png)
-
 We hope that soon we will develop an app to collect the data from the BS and save it in the database :)
-
 
 
 # Installation
