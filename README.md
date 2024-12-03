@@ -12,7 +12,7 @@ The MarmoNet system was developed using [Pulga](https://wiki.caninosloucos.org/i
 
 MarmoNet is a Wireless Sensor Network (WSN) designed to monitor marmosets in urban environments. The system consists of internal nodes (devices that collect data), Base Stations (BS), which aggregate data from the nodes, and a sink device, known as the Aggregator, which collects data from all the Base Stations. As illustrated in the figure, the internal region is monitored by the nodes, and the border is defined by the Base Stations (a logical, not a physical, boundary). The aggregated data is then sent to the Aggregator, allowing biologists to study it.
 
-IMAGE TBD
+![MarmoNet](./assets/fig/image.png)
 
 Marmosets are highly intelligent animals with a very low recapture rate. This makes it impractical to use systems that require frequent battery changes or manual data recovery. As a result, MarmoNet was designed with an energy-efficient topology. To reduce power consumption, the system is synchronized: all devices wake up at the same time to collect and transmit data. Base Stations are responsible for resynchronizing the nodes they detect, while the Aggregator synchronizes the Base Stations.
 
