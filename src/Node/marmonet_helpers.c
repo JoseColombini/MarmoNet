@@ -1,13 +1,4 @@
-#include "marmonet_structs.h"
-#include "MarmoNet_params.h"
-#include "host/ble_gatt.h"
-#include "host/ble_hs.h"
-#include "services/gap/ble_svc_gap.h"
-#include "services/gatt/ble_svc_gatt.h"
-
-#include "host/ble_hs.h"
-#include "host/ble_gap.h"
-#include "net/bluetil/ad.h"
+#include "../marmonet_helpers.h"
 
 // Function to disconnect from the central
 void disconnect_from_central(uint16_t conn_handle) {
@@ -29,26 +20,6 @@ uint8_t marmonet_activate_sensor(DATA_MASK sensor)
 
 
 
-static int _gap_event_adv_cb(struct ble_gap_event *event, void *arg)
-{
-    (void) arg;
-
-    switch (event->type) {
-
-        case BLE_GAP_EVENT_CONNECT:
-            if (event->connect.status != 0) {
-                // failed, ensure advertising is restarted
-                nimble_scanner_start();            
-            }
-            break;
-
-        case BLE_GAP_EVENT_DISCONNECT:
-            nimble_scanner_start();
-            break;
-    }
-
-    return 0;
-}
 
 
 static ble_gap_event_fn *_gap_cb;
@@ -100,4 +71,12 @@ void adv_start(bluetil_ad_t _ad, int32_t _adv_duration)
 
     rc = ble_gap_adv_start(nimble_riot_own_addr_type, NULL, _adv_duration, &_advp, _gap_cb, _gap_cb_arg);
     assert(rc == 0);
+}
+
+void print_event(MarmoNet_Event event)
+{
+    printf("\r\nEvent nmb: %i", event.event_n);
+    printf("\r\nProximity: %i", event.neighbors_id);
+    printf("\r\nBMX: %i, %i, %i", event.enviroment.barometer, event.enviroment.humidity, event.enviroment.temperature);
+    
 }
