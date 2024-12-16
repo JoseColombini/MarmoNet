@@ -2,7 +2,19 @@
 #define _MARMONET_STRUCTS_H
 
 #include "MarmoNet_params.h"
+#include <stdint.h>
+#include "nimble_riot.h"
+#include "nimble_autoadv.h"
+#include "nimble_scanner.h"
 
+#include "host/ble_hs.h"
+#include "host/ble_gatt.h"
+#include "services/gap/ble_svc_gap.h"
+#include "services/gatt/ble_svc_gatt.h"
+#include "net/ble.h"
+#include "event/timeout.h"
+
+#include <stdint.h>
 
 //ID for animal identification
 typedef enum _MarmoNet__ID {
@@ -33,14 +45,14 @@ typedef enum {
 
 typedef struct 
 {
-  #if BAROMETER
+  #if USE_BAROMETER
     uint32_t barometer;
   #endif
-  #if TEMPERATURE
+  #if USE_TEMPERATURE
     int16_t temperature;
   #endif
-  #if HUMIDITY
-    int32_t humidity;
+  #if USE_HUMIDITY
+    uint16_t humidity;
   #endif
 } bmx_data;
 
@@ -91,9 +103,13 @@ typedef struct  _MarmoNet__CallithrixData
 typedef struct
 {
   MarmoNet_NodeInfo abi_info;
-  uint16_t bs_wakeup;
+  uint16_t bs_event_n;
+  bmx_data bs_enviroment;
+
+  uint8_t stack_size;
 
   MarmoNet_NodeWakeup* stack_head_wakeup;
+
 }MarmoNet_data_recover;
 
 
@@ -102,7 +118,7 @@ typedef struct _MarmoNet__BS_Collection
 {
   MarmoNet_data_recover data;
 
-  MarmoNet_BS_Collection* stack_head_wakeup;
+  MarmoNet_BS_Collection* stack_collection;
 
 };
 
@@ -110,19 +126,16 @@ typedef struct
 {
   MarmoNet_NodeInfo info;
 
-  MarmoNet_BS_Collection* stack_collection;
+  MarmoNet_BS_Collection* stack_head_collection;
 
 }MarmoNet_BSData;
 
 
-nimble_scanner_cfg_t marmonet_scan_params = {
-        .itvl_ms = 30,
-        .win_ms = 30,
-#if IS_USED(MODULE_NIMBLE_PHY_CODED)
-        .flags = NIMBLE_SCANNER_PHY_1M | NIMBLE_SCANNER_PHY_CODED,
-#else
-        .flags = NIMBLE_SCANNER_PHY_1M,
-#endif
-};
+typedef struct 
+{
+  ztimer_now_t timer;
+  uint16_t current_wakeup;
+}sync_data;
+
 
 #endif

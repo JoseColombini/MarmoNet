@@ -1,7 +1,4 @@
-#include "bmx280_params.h"
-#include "bmx280.h"
-// #include "marmonet_structs.h"
-
+#include "../bmx_simple.h"
 
 bmx280_t bmx;
 
@@ -32,8 +29,9 @@ uint32_t get_pressure()
     return bmx280_read_pressure(&bmx);
 }
 
-int32_t get_humidity()
+uint16_t get_humidity()
 {
-    return bmx280_read_humidity(&bmx);
+    return bme280_read_humidity(&bmx);
 }
+
 

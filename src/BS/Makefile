@@ -1,5 +1,5 @@
 # name of your application
-APPLICATION = demo_MarmoNet_BS
+APPLICATION = Demo_TCC_BS
 
 # If no BOARD is found in the environment, use this default:
 BOARD ?= pulga

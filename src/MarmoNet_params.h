@@ -21,7 +21,7 @@
 //For now we are using a single timer type so this is a sequence in a row
 #define NMBR_WKPS_SEQ 10     
 
-#define LONG_SLEEP 10*WAKEUP_PERIOD
+#define LONG_SLEEP 1*WAKEUP_PERIOD
 
 
 /*
@@ -36,14 +36,14 @@
 */
 
 #define USE_BMX          1 //0 do not use BMX 1 use it
-    #define BAROMETER    1 //
-    #define TEMPERATURE  1 //
-    #define HUMIDITY     0 //
+    #define USE_BAROMETER    1 //
+    #define USE_TEMPERATURE  1 //
+    #define USE_HUMIDITY     1 //
 
 //NEED TO BE MORE DEV IF WE WILL USE IT
-#define USE_BMI     0 //Same as USE_BMX
-    #define ACC     0
-    #define GYRO    0
+#define USE_BMI     (0) //Same as USE_BMX
+    #define USE_ACC     (0)
+    #define USE_GYRO    (0)
 
 
 #define USE_SI1133  0 //TODO Integrate with Pulga

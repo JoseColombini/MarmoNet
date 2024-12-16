@@ -1,5 +1,5 @@
 # name of your application
-APPLICATION = Person_exp_Node_1
+APPLICATION = Demo_TCC_Node_2
 
 
 # If no BOARD is found in the environment, use this default:
