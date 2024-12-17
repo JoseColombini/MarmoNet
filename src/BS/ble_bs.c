@@ -25,6 +25,9 @@ static int _ble_central_on_characteristic_discovered(uint16_t conn_handle, const
 
     }else if(ble_uuid_cmp(&(chr->uuid.u), CALLITHRIX_CHR_STATUS_UUID) == 0){
         chrs_list.status_handler = chr->val_handle;
+
+    }else if(ble_uuid_cmp(&(chr->uuid.u), CALLITRHIX_CHR_SENSOR_ON) == 0){
+        chrs_list.maks_handler = chr->val_handle;
     }
 
     return 0;
@@ -54,9 +57,8 @@ int gap_event_cb(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_CONNECT:
         /* code */
         if (event->connect.status == 0) {
-            printf("Connected to device\n");
+            puts("Connected to device\n");
             conected_handler = event->connect.conn_handle;
-
             ble_gattc_disc_all_svcs(conected_handler, _ble_central_on_service_discovered, NULL);
 
         // Proceed with GATT operations like service discovery or reading characteristics
@@ -67,7 +69,7 @@ int gap_event_cb(struct ble_gap_event *event, void *arg)
 
         break;
     case BLE_GAP_EVENT_DISCONNECT:
-        // syncing = false;
+        syncing = false;
         chrs_list.lat_handler = 0;
         chrs_list.sync_handler = 0;
         chrs_list.status_handler = 0;
@@ -210,7 +212,7 @@ void scan_callback(uint8_t type, const ble_addr_t *addr,
         // }
     }
 
-    if(memcmp(addr->val, node_addr[0], 6) == 0)
+    if(memcmp(addr->val, node_addr[1], 6) == 0)
     {
 
         // if(c19_syncing){

@@ -157,13 +157,15 @@ static int ble_central_data_recovery(uint16_t conn_handle, const struct ble_gatt
             // (*recover_wkp).stack_wakeup = bs_Data.stack_head_collection->data.stack_head_wakeup;
             // bs_Data.stack_head_collection->data.stack_head_wakeup = recover_wkp;
             // bs_data.info.not_sent_wakeup++;
-            // bs_Data.stack_head_collection->data.stack_size++;
+            Data.stack_head_collection->data.stack_size++;
+            printf("\r\nstack_size %i", Data.stack_head_collection->data.stack_size);
             print_event(recover_wkp->event);
             // printf("\r\nDATTAA %i", recover_data->event.event_n);
 
         // }
-        // if(bs_Data.stack_head_collection->data.stack_size >= bs_Data.stack_head_collection->data.abi_info.not_sent_wakeup)
-            {ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);}
+        if(Data.stack_head_collection->data.stack_size < Data.stack_head_collection->data.abi_info.not_sent_wakeup)
+            {data_recovery();}
+        else {ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);}
         // else{data_recovery();}          
         // ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);
     }else{
@@ -239,13 +241,13 @@ static int ble_on_write_timer(uint16_t conn_handle,
 
 static int ble_sync(uint32_t lat)
 {
-    sync_data _sync = {
-        .timer = 2*WAKEUP_PERIOD - ztimer_now(ZTIMER_MSEC)%(WAKEUP_PERIOD) - lat,
-        .current_wakeup = Data.info.n_wakeup
-    };
-    
+    // sync_data _sync = {
+    //     .timer = 2*WAKEUP_PERIOD - ztimer_now(ZTIMER_MSEC)%(WAKEUP_PERIOD) - lat,
+    //     .current_wakeup = Data.info.n_wakeup
+    // };
+    uint32_t _sync = 2*WAKEUP_PERIOD - ztimer_now(ZTIMER_MSEC)%(WAKEUP_PERIOD) - lat;
     // printf("SYNC in %lu = %lu - %lu - %lu\r\n", t_sync, 2*WAKEUP_PERIOD, ztimer_now(ZTIMER_MSEC)%(WAKEUP_PERIOD), lat);
-    int rc = ble_gattc_write_flat(conected_handler, chrs_list.sync_handler, &(_sync.timer), sizeof(_sync.timer), ble_on_write_timer, NULL);
+    int rc = ble_gattc_write_flat(conected_handler, chrs_list.sync_handler, &(_sync), sizeof(_sync), ble_on_write_timer, NULL);
     if(rc != 0){
         printf("ERRO DE ESCRITA %i \n\r", rc);
     }
@@ -349,6 +351,7 @@ void _cmd_sync(int argc, char **argv)
         // if(!ble_gap_disc_active()) nimble_scanner_start();
         ztimer_sleep(ZTIMER_MSEC, 1);
     }
+    nimble_scanner_stop();
 
 }
 
@@ -365,6 +368,7 @@ void _cmd_data(int argc, char **argv)
     MarmoNet_BS_Collection* col =  malloc(sizeof(MarmoNet_BS_Collection));
     (*col).stack_collection = Data.stack_head_collection;
     Data.stack_head_collection = col;
+    Data.stack_head_collection->data.stack_size = 0;
 
     epx01_syncing = true;
     c19_syncing = true;
@@ -382,14 +386,51 @@ void _cmd_data(int argc, char **argv)
         }
         ztimer_sleep(ZTIMER_MSEC, 1);
     }
+    nimble_scanner_stop();
 
 }
+
+void set_mask(uint8_t mask)
+{
+    int rc = ble_gattc_write_flat(conected_handler, chrs_list.maks_handler, &(mask), sizeof(mask), ble_on_write_timer, NULL);
+    if(rc != 0){
+        printf("ERRO DE ESCRITA %i \n\r", rc);
+    }
+
+
+}
+
+void _cmd_mask(int argc, char **argv)
+{
+    uint8_t mask_value = strtol(argv[1], NULL, 10);
+
+    epx01_syncing = true;
+    c19_syncing = true;
+
+    syncing = false;
+
+    nimble_scanner_set_scan_duration(20*MSEC_PER_SEC);
+    nimble_scanner_start();
+    syncing = false;
+    uint32_t t0 = ztimer_now(ZTIMER_MSEC);
+    while( (ztimer_now(ZTIMER_MSEC) - t0)  < 20*MSEC_PER_SEC){
+        if(chrs_list.status_handler != 0 && chrs_list.lat_handler != 0 && chrs_list.sync_handler!=0 && !syncing && chrs_list.data_handler != 0 && !syncing){
+            set_mask(mask_value);
+            syncing = true;
+        }
+        ztimer_sleep(ZTIMER_MSEC, 1);
+    }
+    nimble_scanner_stop();
+
+}
+
 
 
 static const shell_command_t _commands[] = {
     { "sync", "trigger a BLE scan", _cmd_sync },
     { "print", "trigger a BLE scan", _cmd_print },
     { "data", "trigger a BLE scan", _cmd_data },
+    { "mask", "set a new MASK", _cmd_mask},
 
 
     { NULL, NULL, NULL }

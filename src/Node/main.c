@@ -269,7 +269,7 @@ int main(void)
 
     uint8_t buf_std[BLE_HS_ADV_MAX_SZ];
     uint8_t buf_fail[BLE_HS_ADV_MAX_SZ];
-    // (void)puts("Welcome to MARMONET!");
+    (void)puts("Welcome to MARMONET!");
 
 
     //INIT BMX

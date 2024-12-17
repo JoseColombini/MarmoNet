@@ -21,11 +21,14 @@ typedef struct
     uint16_t data_handler;
     uint16_t sync_handler;
     uint16_t status_handler;
+    uint16_t maks_handler;
     
 } chrs;
 
 extern chrs chrs_list;
 
 extern const struct ble_gap_conn_params ble_gap_conn_params_dflt;
+
+extern bool syncing;
 
 #endif

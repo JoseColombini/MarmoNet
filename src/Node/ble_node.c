@@ -59,6 +59,7 @@ int gatt_data_transfer_cb(uint16_t conn_handle, uint16_t attr_handle,
         if(res != 0) return BLE_ATT_ERR_INSUFFICIENT_RES;
         
         free(to_send);
+        Data.info.not_sent_wakeup--;
     // }
         
     return (res == 0) ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
