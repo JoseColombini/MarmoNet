@@ -37,7 +37,7 @@ The Node can connect to a Base Station (BS) to send the collected data for aggre
 
 ![Node ASM](./assets/fig/ASM_Node.png)
 
-## BS
+## BaseStation
 
 The BS is responsible to collect the data from the Node, sync the Nodes and activate/deactivate sensors.
 
