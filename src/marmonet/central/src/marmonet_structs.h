@@ -1,20 +1,7 @@
 #ifndef _MARMONET_STRUCTS_H
 #define _MARMONET_STRUCTS_H
 
-#include "MarmoNet_params.h"
-#include <stdint.h>
-#include "nimble_riot.h"
-#include "nimble_autoadv.h"
-#include "nimble_scanner.h"
-
-#include "host/ble_hs.h"
-#include "host/ble_gatt.h"
-#include "services/gap/ble_svc_gap.h"
-#include "services/gatt/ble_svc_gatt.h"
-#include "net/ble.h"
-#include "event/timeout.h"
-
-#include <stdint.h>
+#include "marmonet_params.h"
 
 //ID for animal identification
 typedef enum _MarmoNet__ID {
@@ -41,20 +28,49 @@ typedef enum {
 }DATA_MASK;
 
 
+struct bme280_reading {
+	/* Compensated values. */
+	int32_t comp_temp;
+	uint32_t comp_press;
+	uint32_t comp_humidity;
+};
 
+struct bme280_data {
+	/* Compensation parameters. */
+	uint16_t dig_t1;
+	int16_t dig_t2;
+	int16_t dig_t3;
+	uint16_t dig_p1;
+	int16_t dig_p2;
+	int16_t dig_p3;
+	int16_t dig_p4;
+	int16_t dig_p5;
+	int16_t dig_p6;
+	int16_t dig_p7;
+	int16_t dig_p8;
+	int16_t dig_p9;
+	uint8_t dig_h1;
+	int16_t dig_h2;
+	uint8_t dig_h3;
+	int16_t dig_h4;
+	int16_t dig_h5;
+	int8_t dig_h6;
 
-typedef struct 
-{
-  #if USE_BAROMETER
-    uint32_t barometer;
-  #endif
-  #if USE_TEMPERATURE
-    int16_t temperature;
-  #endif
-  #if USE_HUMIDITY
-    uint16_t humidity;
-  #endif
-} bmx_data;
+	/* Carryover between temperature and pressure/humidity compensation. */
+	int32_t t_fine;
+
+	uint8_t chip_id;
+
+	struct bme280_reading reading;
+};
+
+// typedef struct 
+// {
+//     uint32_t pression;
+//     int32_t temperature;
+//     uint32_t humidity;
+
+// } bme280_reading;
 
 typedef struct _MarmoNet__NodeWakeup MarmoNet_NodeWakeup;
 
@@ -64,10 +80,9 @@ typedef struct _MarmoNet_Event{
   uint8_t neighbors_id;
   uint8_t fail_safe_found;
 #if USE_BMX
-  bmx_data enviroment;
+  struct bme280_reading enviroment;
 #endif
   uint8_t mask;
-
 
 }MarmoNet_Event;
 
@@ -104,7 +119,7 @@ typedef struct
 {
   MarmoNet_NodeInfo abi_info;
   uint16_t bs_event_n;
-  bmx_data bs_enviroment;
+  struct bme280_reading bs_enviroment;
 
   uint8_t stack_size;
 
@@ -131,11 +146,11 @@ typedef struct
 }MarmoNet_BSData;
 
 
-typedef struct 
-{
-  ztimer_now_t timer;
-  uint16_t current_wakeup;
-}sync_data;
+// typedef struct 
+// {
+//   ztimer_now_t timer;
+//   uint16_t current_wakeup;
+// }sync_data;
 
 
 #endif
