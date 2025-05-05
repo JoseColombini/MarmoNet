@@ -123,6 +123,8 @@ static ssize_t gatt_read_data(struct bt_conn *conn, const struct bt_gatt_attr *a
                                     &(data.wakeup_data[data.info.not_sent_wakeup - 1]),
                                     sizeof(MarmoNet_Event));
 
+    data.info.not_sent_wakeup--;
+
     return ret;
 }
 
@@ -163,8 +165,8 @@ BT_GATT_SERVICE_DEFINE(marmonet_svc,
 			                    gatt_read_lat, gatt_write_sync, NULL),
 	    //Char to send the data saved in the node
         BT_GATT_CHARACTERISTIC(&call_char_data_uuid.uuid,
-		    	                BT_GATT_CHRC_READ,
-			                    BT_GATT_PERM_READ,
+	    	                    BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
+			                    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
 			                    gatt_read_data, NULL, NULL),
 	    //Used to set a mask in the node
         BT_GATT_CHARACTERISTIC(&call_char_mask_uuid.uuid,
