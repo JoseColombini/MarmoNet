@@ -34,8 +34,6 @@ k_tid_t ble_thread_id;
 static struct k_work work_adv_start;
 
 
-#define KEY 0xCA
-#define MAX_DEVICES 8
 
 static const struct gpio_dt_spec led_o = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
@@ -46,7 +44,7 @@ struct k_timer wakeup_timer;
 
 int err;
 
-const uint8_t my_id = MARMONET_ID_COLOMBINI;
+const uint8_t my_id = MARMONET_ID_LOUISE;
 
 MarmoNet_CallithrixData data;
 
@@ -62,7 +60,7 @@ static const struct bt_data ad[] = {
 
 static struct bt_conn *default_conn;
 
-
+uint8_t counter_to_debug = 0;
 /**
  * @section BLE GATT
 */
@@ -118,14 +116,12 @@ ssize_t gatt_write_new_mask(struct bt_conn *conn, const struct bt_gatt_attr *att
 static ssize_t gatt_read_data(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			void *buf, uint16_t len, uint16_t offset)
 {
-    MarmoNet_NodeWakeup* wakeup;
-    wakeup = data.stack_head_wakeup;
-    data.stack_head_wakeup = data.stack_head_wakeup->stack_wakeup;
-    if(wakeup == NULL) return 0;
+    //TODO check if the data is available   
+    if(data.info.not_sent_wakeup == 0) return 0;
 
-    ssize_t ret = bt_gatt_attr_read(conn, attr, buf, len, offset, wakeup,
-                            sizeof(*wakeup));
-    free(wakeup);
+    ssize_t ret = bt_gatt_attr_read(conn, attr, buf, len, offset, 
+                                    &(data.wakeup_data[data.info.not_sent_wakeup - 1]),
+                                    sizeof(MarmoNet_Event));
 
     return ret;
 }
@@ -136,6 +132,11 @@ static ssize_t gatt_read_data(struct bt_conn *conn, const struct bt_gatt_attr *a
 static ssize_t gatt_read_inf(struct bt_conn *conn, const struct bt_gatt_attr *attr,
             void *buf, uint16_t len, uint16_t offset)
 {
+        LOG_INF("INFO READ: \n id: %i mask: %i data to recover: %i", 
+            data.info.my_id,
+            data.info.current_mask,
+            data.info.not_sent_wakeup);
+
     return bt_gatt_attr_read(conn, attr, buf, len, offset, &(data.info),
                             sizeof(data.info));
 }
@@ -172,9 +173,9 @@ BT_GATT_SERVICE_DEFINE(marmonet_svc,
 			                    gatt_read_mask, gatt_write_new_mask, NULL),
 	    //Recover all the status of the node
         BT_GATT_CHARACTERISTIC(&call_char_info_uuid.uuid,
-		    	                BT_GATT_CHRC_READ,
-			                    BT_GATT_PERM_READ,
-			                    gatt_read_inf, NULL, NULL),
+		    	                BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
+			                    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
+			                    gatt_read_inf, gatt_write_new_mask, NULL),
 );
 
 
@@ -224,7 +225,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
     // k_sleep(K_SECONDS(1));  // Give time for cleanup
 
-    k_work_submit(&work_adv_start);
+    // k_work_submit(&work_adv_start);
 
 
 }
@@ -269,22 +270,6 @@ void adv_routine()
  * @section DATA HANDLING
 */
 
-// #define USE_BMX 1 to use the BME280 sensor
-static void read_sensors(MarmoNet_NodeWakeup* wakeup)
-{
-#if USE_BMX
-    err = fetch_bme280();
-
-    if(!err)
-    {
-        (*wakeup).event.enviroment.comp_press = data.info.current_mask & MARMONET_MASK_PRESSURE ? get_pressure() : 0;
-        (*wakeup).event.enviroment.comp_humidity = data.info.current_mask & MARMONET_MASK_HUMIDITY ? get_humidity() : 0;
-        (*wakeup).event.enviroment.comp_temp = data.info.current_mask & MARMONET_MASK_TEMPERATURE ? get_temperature() : 0;
-    }
-#endif
-
-}
-
 //update the data available and manage the stack memory, also handling with the masks
 static void update_data()
 {
@@ -299,26 +284,23 @@ static void update_data()
     if(data.info.current_mask == 0) return; //All sensors deativated
         //Increment the stack to be send
 
-    //Preparing stack head
-    MarmoNet_NodeWakeup* wakeup =  malloc(sizeof(MarmoNet_NodeWakeup));
+    data.wakeup_data[data.info.not_sent_wakeup].neighbors_id = data.info.current_mask & MARMONET_MASK_ID? encounters : 0;
+    LOG_DBG("Neighbors %d", data.wakeup_data[data.info.not_sent_wakeup].neighbors_id);
 
+    encounters = data.info.my_id;
 
-    //copying
-    memcpy(&((*wakeup).event.neighbors_id), &encounters, sizeof(encounters));
-    //I think it is more optimal to do a simple attribution, since it is just a uint8_t
-    memset(&encounters, data.info.my_id, sizeof(encounters));
+#if USE_BMX
+    err = fetch_bme280();
 
-    // memcpy(&((*wakeup).event.fail_safe_found), &encounters_fails, sizeof(encounters_fails));
-    // memset(&encounters_fails, 0, sizeof(encounters_fails));
+    if(!err)
+    {
+        data.wakeup_data[data.info.not_sent_wakeup].enviroment.comp_press = data.info.current_mask & MARMONET_MASK_PRESSURE ? get_pressure() : 0;
+        data.wakeup_data[data.info.not_sent_wakeup].enviroment.comp_humidity = data.info.current_mask & MARMONET_MASK_HUMIDITY ? get_humidity() : 0;
+        data.wakeup_data[data.info.not_sent_wakeup].enviroment.comp_temp = data.info.current_mask & MARMONET_MASK_TEMPERATURE ? get_temperature() : 0;
+    }
+#endif
 
-    read_sensors(wakeup);
-
-        //I think it is possible to optimize it using global pointers and a single fucntion call
-
-    (*wakeup).event.event_n = data.info.n_wakeup;
-    (*wakeup).stack_wakeup = data.stack_head_wakeup;
-    data.stack_head_wakeup = wakeup; 
-    
+    data.wakeup_data[data.info.not_sent_wakeup].event_n = data.info.n_wakeup;
     data.info.n_wakeup++;
     data.info.not_sent_wakeup++;
     data.info.last_sync++;
@@ -341,7 +323,7 @@ void wakeup_thread_function(void *arg1, void *arg2, void *arg3)
     gpio_pin_toggle_dt(&led_o);
 
 
-    for(int round = 0; round < MAX_DEVICES; round++){
+    for(int round = 0; round < MAX_NODES; round++){
         if((1 << round) == my_id) adv_routine();
         else {k_sleep(K_MSEC(TURN_DURATION));}
     }
@@ -353,7 +335,17 @@ void wakeup_thread_function(void *arg1, void *arg2, void *arg3)
     gpio_pin_toggle_dt(&led_o);
 
     update_data();
-
+    if(counter_to_debug%3 == 0){
+        for(int i = 0; i < 3; i++)
+            LOG_ERR("%i: %i WAKEUP: \r\n"
+                    "neighbors: %i \r\n"
+                    "sensors %i %i %i \r\n ", 
+                    counter_to_debug - i, data.wakeup_data[counter_to_debug - i].event_n,data.wakeup_data[counter_to_debug - i].neighbors_id,
+                    data.wakeup_data[counter_to_debug - i].enviroment.comp_press,
+                    data.wakeup_data[counter_to_debug - i].enviroment.comp_humidity,
+                    data.wakeup_data[counter_to_debug - i].enviroment.comp_temp);
+    }
+    counter_to_debug++;
 }
 
 //Wakeup callback is the interuption that will start the wakeup thread to start the activities of our system
@@ -390,20 +382,23 @@ int main() {
     
 
     data.info.my_id = my_id;
-    data.info.current_mask = MARMONET_MASK_ID;
+    data.info.current_mask = MARMONET_MASK_ID | MARMONET_MASK_PRESSURE | MARMONET_MASK_HUMIDITY | MARMONET_MASK_TEMPERATURE;
     data.info.last_sync = 0;
     data.info.n_wakeup = 0;
     data.info.not_sent_wakeup = 0;
+    encounters = my_id;
+
 
     err = bt_enable(NULL);
     if(err)
         LOG_ERR("Bluetooth Error %i", err);
-    
-    k_work_init(&work_adv_start, adv_start);
-	k_work_submit(&work_adv_start);
 
-    // k_timer_init(&wakeup_timer, wakeup_callback, NULL);
 
-    // k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
+    // k_work_init(&work_adv_start, adv_start);
+	// k_work_submit(&work_adv_start);
+
+    k_timer_init(&wakeup_timer, wakeup_callback, NULL);
+
+    k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
 
 }

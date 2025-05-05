@@ -64,6 +64,7 @@ sample_fetch:
     {
         LOG_WRN("fetch sample from \"%s\" failed: %d, trying again",
                 bme280->name, error);
+        k_sleep(K_MSEC(1));
         goto sample_fetch;
     }
     else
