@@ -121,9 +121,9 @@ typedef struct
   uint16_t bs_event_n;
   struct bme280_reading bs_enviroment;
 
-  uint8_t stack_size;
+  uint8_t array_size;
 
-  MarmoNet_Event_stack* stack_head_wakeup;
+  MarmoNet_Event* events;
 
 }MarmoNet_data_recover;
 
