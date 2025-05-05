@@ -72,7 +72,7 @@ struct bme280_data {
 
 // } bme280_reading;
 
-typedef struct _MarmoNet__NodeWakeup MarmoNet_NodeWakeup;
+typedef struct _MarmoNet__Event__stack MarmoNet_Event_stack;
 
 typedef struct _MarmoNet_Event{
 
@@ -89,21 +89,21 @@ typedef struct _MarmoNet_Event{
 #define MAX_EVENT_SEND  MAXPAYLOAD_SIZE/sizeof(MarmoNet_Event)
 
 
-struct  _MarmoNet__NodeWakeup
+struct  _MarmoNet__Event__stack
 {
  
   MarmoNet_Event event;
 
-  MarmoNet_NodeWakeup* stack_wakeup;
+  MarmoNet_Event_stack* stack_wakeup;
 };
 
 typedef struct  _MarmoNet__NodeInfo
 {
-  uint8_t my_id;
-  uint16_t n_wakeup;
-  uint8_t not_sent_wakeup;
-  uint8_t current_mask;
-  uint16_t last_sync;
+  uint8_t my_id;  //ID of the node
+  uint16_t n_wakeup; //How many data were collected
+  uint8_t not_sent_wakeup; //the nmber of data that were not recovered (work as index for the data array)
+  uint8_t current_mask; //The current mask of data to be collected
+  uint16_t last_sync; //Last time the node was synchronized
 
 }MarmoNet_NodeInfo;
 
@@ -111,7 +111,7 @@ typedef struct  _MarmoNet__CallithrixData
 {
   MarmoNet_NodeInfo info;
 
-  MarmoNet_NodeWakeup* stack_head_wakeup;
+  MarmoNet_Event wakeup_data[1000];
 }MarmoNet_CallithrixData;
 
 
@@ -123,7 +123,7 @@ typedef struct
 
   uint8_t stack_size;
 
-  MarmoNet_NodeWakeup* stack_head_wakeup;
+  MarmoNet_Event_stack* stack_head_wakeup;
 
 }MarmoNet_data_recover;
 
@@ -141,16 +141,10 @@ typedef struct
 {
   MarmoNet_NodeInfo info;
 
-  MarmoNet_BS_Collection* stack_head_collection;
+  MarmoNet_data_recover data_recovered[100];
 
 }MarmoNet_BSData;
 
-
-// typedef struct 
-// {
-//   ztimer_now_t timer;
-//   uint16_t current_wakeup;
-// }sync_data;
 
 
 #endif

@@ -75,6 +75,7 @@
 
 #define KEY_SIZE        0x2 //ONE FOR THE FIELD ONE FOR THE NAME
 #define KEY             0xCA
+#define BS_KEY          0xEB
 #define KEY_FAIL_SAFE   0xFF
 
 /*

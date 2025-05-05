@@ -11,7 +11,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
-
+#include <hal/nrf_rtc.h>
 
 #include "marmonet_structs.h"
 #include "marmonet_params.h"
@@ -48,14 +48,17 @@ struct k_timer wakeup_timer;
 
 int err;
 
-const uint8_t my_id = MARMONET_ID_COLOMBINI;
+const uint8_t my_id = 1;
 
-MarmoNet_CallithrixData data;
+MarmoNet_BSData BS_data;
 
 uint8_t encounters = 0;
 
 //TODO pass it as constant as in riot
-static uint8_t std_adv_data[] = { KEY, my_id};
+static uint8_t std_adv_data[] = { BS_KEY, my_id};
+
+K_SEM_DEFINE(my_sem, 0, 1); //SEMPAHOR TO DEBUG
+
 
 static const struct bt_data ad[] = {
 	BT_DATA(BT_DATA_MANUFACTURER_DATA, std_adv_data, sizeof(std_adv_data)),
@@ -104,8 +107,8 @@ static ssize_t gatt_read_mask(struct bt_conn *conn, const struct bt_gatt_attr *a
 			void *buf, uint16_t len, uint16_t offset)
 {
 
-	return bt_gatt_attr_read(conn, attr, buf, len, offset, &(data.info.current_mask),
-                            sizeof(data.info.current_mask));
+	// return bt_gatt_attr_read(conn, attr, buf, len, offset, &(data.info.current_mask),
+    //                         sizeof(data.info.current_mask));
 }
 
 //SET NEW MASK
@@ -113,9 +116,9 @@ ssize_t gatt_write_new_mask(struct bt_conn *conn, const struct bt_gatt_attr *att
 			void *buf, uint16_t len, uint16_t offset)
 {
 	
-    memcpy(&(data.info.current_mask), buf, len);
+    // memcpy(&(data.info.current_mask), buf, len);
 
-	return len;
+	// return len;
 }
 
 /*
@@ -125,16 +128,16 @@ ssize_t gatt_write_new_mask(struct bt_conn *conn, const struct bt_gatt_attr *att
 static ssize_t gatt_read_data(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			void *buf, uint16_t len, uint16_t offset)
 {
-    MarmoNet_NodeWakeup* wakeup;
-    wakeup = data.stack_head_wakeup;
-    data.stack_head_wakeup = data.stack_head_wakeup->stack_wakeup;
-    if(wakeup == NULL) return 0;
+    // MarmoNet_NodeWakeup* wakeup;
+    // wakeup = data.stack_head_wakeup;
+    // data.stack_head_wakeup = data.stack_head_wakeup->stack_wakeup;
+    // if(wakeup == NULL) return 0;
 
-    ssize_t ret = bt_gatt_attr_read(conn, attr, buf, len, offset, wakeup,
-                            sizeof(*wakeup));
-    free(wakeup);
+    // ssize_t ret = bt_gatt_attr_read(conn, attr, buf, len, offset, wakeup,
+    //                         sizeof(*wakeup));
+    // free(wakeup);
 
-    return ret;
+    // return ret;
 }
 
 /*
@@ -143,8 +146,8 @@ static ssize_t gatt_read_data(struct bt_conn *conn, const struct bt_gatt_attr *a
 static ssize_t gatt_read_inf(struct bt_conn *conn, const struct bt_gatt_attr *attr,
             void *buf, uint16_t len, uint16_t offset)
 {
-    return bt_gatt_attr_read(conn, attr, buf, len, offset, &(data.info),
-                            sizeof(data.info));
+    // return bt_gatt_attr_read(conn, attr, buf, len, offset, &(data.info),
+    //                         sizeof(data.info));
 }
 
 
@@ -164,8 +167,8 @@ BT_GATT_SERVICE_DEFINE(marmonet_svc,
         //Char to catch lat using Cristian's algorithm.
         //It send only a byte to avoid miss reading the latency beacuse of processing time
 	    BT_GATT_CHARACTERISTIC(&call_char_sync_lat_uuid.uuid,
-		    	                BT_GATT_CHRC_READ,
-			                    BT_GATT_PERM_READ,
+		    	                BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
+			                    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
 			                    gatt_read_lat, gatt_write_sync, NULL),
 	    //Char to send the data saved in the node
         BT_GATT_CHARACTERISTIC(&call_char_data_uuid.uuid,
@@ -199,7 +202,82 @@ static void gatt_write_cb(struct bt_conn *conn, uint8_t err,
     } else {
         LOG_INF("GATT write successful!\n");
     }
-    bt_gatt_read(conn, &read_params);
+    // bt_gatt_read(conn, &read_params);
+}
+
+static uint8_t gatt_read_data_cb(struct bt_conn *conn, uint8_t err,
+                                struct bt_gatt_read_params *params,
+                                const void *data, uint16_t length)
+{
+    if (err) {
+        LOG_ERR("GATT read failed (err %d)", err);
+        return BT_GATT_ITER_STOP;
+    }
+    if(data){
+        data
+        BS_data.data_recovered[BS_data.info.not_sent_wakeup]
+
+
+    }
+    return BT_GATT_ITER_STOP;
+
+}
+
+static uint8_t gatt_read_sync_lat_cb(struct bt_conn *conn, uint8_t err,
+                                struct bt_gatt_read_params *params,
+                                const void *data, uint16_t length)
+{
+    if (err) {
+        LOG_ERR("GATT read failed (err %d)", err);
+        return BT_GATT_ITER_STOP;
+    }
+    if(data){
+       BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info = *(MarmoNet_NodeInfo *)data;
+
+            write_params.handle = params->single.handle;
+            write_params.data = &BS_data.info.current_mask;      // Pointer to the data to send
+            write_params.length = sizeof(BS_data.info.current_mask); // Data size
+            write_params.func = gatt_write_cb; // Callback for write confirmation
+
+            err = bt_gatt_write(conn, &write_params);
+       
+    }
+}
+
+
+
+static uint8_t gatt_read_info_cb(struct bt_conn *conn, uint8_t err,
+                                struct bt_gatt_read_params *params,
+                                const void *data, uint16_t length)
+{
+    if (err) {
+        LOG_ERR("GATT read failed (err %d)", err);
+        return BT_GATT_ITER_STOP;
+    }
+    if(data){
+       BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info = *(MarmoNet_NodeInfo *)data;
+       if(BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.current_mask != BS_data.info.current_mask){
+
+            write_params.handle = params->single.handle;
+            write_params.data = &BS_data.info.current_mask;      // Pointer to the data to send
+            write_params.length = sizeof(BS_data.info.current_mask); // Data size
+            write_params.func = gatt_write_cb; // Callback for write confirmation
+            LOG_DBG("Writing new mask");
+
+
+            err = bt_gatt_write(conn, &write_params);
+       }
+       if(BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup > 0){
+
+            read_params.func = gatt_read_data_cb;
+            read_params.by_uuid.uuid = &call_char_data_uuid;
+            int err = bt_gatt_read(default_conn, &read_params);
+
+       }
+    }
+    k_sem_give(&my_sem);
+    return BT_GATT_ITER_STOP;
+
 }
 
 static uint8_t gatt_read_maks_cb(struct bt_conn *conn, uint8_t err,
@@ -257,12 +335,30 @@ static uint8_t gatt_char_discover_cb(struct bt_conn *conn, const struct bt_gatt_
 
     
     case BT_UUID_TYPE_128:
-        if(!bt_uuid_cmp(chrc->uuid, &call_char_mask_uuid)){
-            LOG_INF("Found status characteristic");
-            read_params.func = gatt_read_maks_cb;
-        }else{
+
+        if(!bt_uuid_cmp(chrc->uuid, &call_char_info_uuid)){
+            LOG_DBG("Found info characteristic");
+            read_params.func = gatt_read_info_cb;
+
+        }else if(!bt_uuid_cmp(chrc->uuid, &call_char_data_uuid)){
+            LOG_DBG("Found data characteristic");
+            read_params.func = gatt_read_data_cb;
+
+        }else if(!bt_uuid_cmp(chrc->uuid, &call_char_sync_lat_uuid)){
+            LOG_DBG("Found sync characteristic");
+            // Stop RTC2
+            nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_STOP);
+
+            // Clear the counter
+            nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_CLEAR);
+
+            // Optionally start again
+            nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_START);
+            read_params.func = gatt_read_sync_lat_cb;
+
+        }else
             return BT_GATT_ITER_CONTINUE;
-        }
+
         break;
 
     default:
@@ -290,13 +386,13 @@ static uint8_t gatt_char_discover_cb(struct bt_conn *conn, const struct bt_gatt_
 
 static uint8_t gatt_service_discover_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                                 struct bt_gatt_discover_params *params) {
-    LOG_INF("gatt service discover");
+    LOG_DBG("gatt service discover");
     if (!attr) {
-        LOG_INF("Discovery completed");
+        LOG_DBG("Discovery completed");
         return BT_GATT_ITER_STOP;
     }
 
-    LOG_INF("Discovery ongoing");
+    LOG_DBG("Discovery ongoing");
 
 
     struct bt_gatt_service_val *service = (struct bt_gatt_service_val *)attr->user_data;
@@ -312,17 +408,22 @@ static uint8_t gatt_service_discover_cb(struct bt_conn *conn, const struct bt_ga
     return BT_GATT_ITER_STOP;
 }
 
-static void work_discover_cb(struct k_work *work)
+static void work_discover_cb(void *arg1, void *arg2, void *arg3)
 {
-    discover_service_params.uuid = &call_svc.uuid;
 
-    discover_service_params.func = gatt_service_discover_cb;
-    discover_service_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
-    discover_service_params.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-    discover_service_params.type = BT_GATT_DISCOVER_PRIMARY;
+    read_params.func = gatt_read_info_cb;
+    read_params.by_uuid.uuid = &call_char_info_uuid;
+    read_params.by_uuid.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+    read_params.by_uuid.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    int err = bt_gatt_read(default_conn, &read_params);
 
+    k_sem_take(&my_sem, K_FOREVER);
 
-    bt_gatt_discover(default_conn, &discover_service_params);
+    LOG_INF("INFO READ: \n id: %i mask: %i data to recover: %i", 
+            BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.my_id,
+            BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.current_mask,
+            BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup);
+
 }
 
 
@@ -374,7 +475,11 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	LOG_INF("Connected: %s", addr);
 
 
-    k_work_submit(&work_discover);
+    // k_work_submit(&work_discover);
+    k_thread_create(&ble_thread, ble_thread_stack,
+                K_THREAD_STACK_SIZEOF(ble_thread_stack),
+                work_discover_cb, NULL, NULL, NULL,
+                K_PRIO_COOP(7), 0, K_NO_WAIT);
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -424,58 +529,58 @@ void adv_routine()
 */
 
 // #define USE_BMX 1 to use the BME280 sensor
-static void read_sensors(MarmoNet_NodeWakeup* wakeup)
-{
-#if USE_BMX
-    err = fetch_bme280();
+// static void read_sensors(MarmoNet_NodeWakeup* wakeup)
+// {
+// #if USE_BMX
+//     err = fetch_bme280();
 
-    if(!err)
-    {
-        (*wakeup).event.enviroment.comp_press = data.info.current_mask & MARMONET_MASK_PRESSURE ? get_pressure() : 0;
-        (*wakeup).event.enviroment.comp_humidity = data.info.current_mask & MARMONET_MASK_HUMIDITY ? get_humidity() : 0;
-        (*wakeup).event.enviroment.comp_temp = data.info.current_mask & MARMONET_MASK_TEMPERATURE ? get_temperature() : 0;
-    }
-#endif
+//     if(!err)
+//     {
+//         (*wakeup).event.enviroment.comp_press = data.info.current_mask & MARMONET_MASK_PRESSURE ? get_pressure() : 0;
+//         (*wakeup).event.enviroment.comp_humidity = data.info.current_mask & MARMONET_MASK_HUMIDITY ? get_humidity() : 0;
+//         (*wakeup).event.enviroment.comp_temp = data.info.current_mask & MARMONET_MASK_TEMPERATURE ? get_temperature() : 0;
+//     }
+// #endif
 
-}
+// }
 
 //update the data available and manage the stack memory, also handling with the masks
 static void update_data()
 {
 
     
-    #if USE_FAIL_SAFE
-        fail_safe = last_sync > MAX_TIME_WTHT_SYNC ? true : false; 
-    #endif
-    //TODO which is more optimal always running this code or the if?
-    // if(encounters != my_id || encounters_fails != 0 || (current_mask & MARMONET_MASK_ID) != 0){
+    // #if USE_FAIL_SAFE
+    //     fail_safe = last_sync > MAX_TIME_WTHT_SYNC ? true : false; 
+    // #endif
+    // //TODO which is more optimal always running this code or the if?
+    // // if(encounters != my_id || encounters_fails != 0 || (current_mask & MARMONET_MASK_ID) != 0){
 
-    if(data.info.current_mask == 0) return; //All sensors deativated
-        //Increment the stack to be send
+    // if(data.info.current_mask == 0) return; //All sensors deativated
+    //     //Increment the stack to be send
 
-    //Preparing stack head
-    MarmoNet_NodeWakeup* wakeup =  malloc(sizeof(MarmoNet_NodeWakeup));
+    // //Preparing stack head
+    // MarmoNet_NodeWakeup* wakeup =  malloc(sizeof(MarmoNet_NodeWakeup));
 
 
-    //copying
-    memcpy(&((*wakeup).event.neighbors_id), &encounters, sizeof(encounters));
-    //I think it is more optimal to do a simple attribution, since it is just a uint8_t
-    memset(&encounters, data.info.my_id, sizeof(encounters));
+    // //copying
+    // memcpy(&((*wakeup).event.neighbors_id), &encounters, sizeof(encounters));
+    // //I think it is more optimal to do a simple attribution, since it is just a uint8_t
+    // memset(&encounters, data.info.my_id, sizeof(encounters));
 
-    // memcpy(&((*wakeup).event.fail_safe_found), &encounters_fails, sizeof(encounters_fails));
-    // memset(&encounters_fails, 0, sizeof(encounters_fails));
+    // // memcpy(&((*wakeup).event.fail_safe_found), &encounters_fails, sizeof(encounters_fails));
+    // // memset(&encounters_fails, 0, sizeof(encounters_fails));
 
-    read_sensors(wakeup);
+    // read_sensors(wakeup);
 
-        //I think it is possible to optimize it using global pointers and a single fucntion call
+    //     //I think it is possible to optimize it using global pointers and a single fucntion call
 
-    (*wakeup).event.event_n = data.info.n_wakeup;
-    (*wakeup).stack_wakeup = data.stack_head_wakeup;
-    data.stack_head_wakeup = wakeup; 
+    // (*wakeup).event.event_n = data.info.n_wakeup;
+    // (*wakeup).stack_wakeup = data.stack_head_wakeup;
+    // data.stack_head_wakeup = wakeup; 
     
-    data.info.n_wakeup++;
-    data.info.not_sent_wakeup++;
-    data.info.last_sync++;
+    // data.info.n_wakeup++;
+    // data.info.not_sent_wakeup++;
+    // data.info.last_sync++;
 }
 
 /**
@@ -539,11 +644,11 @@ int main() {
 	gpio_pin_configure_dt(&led_o, GPIO_OUTPUT_ACTIVE);
 
 
-    data.info.my_id = my_id;
-    data.info.current_mask = MARMONET_MASK_ID;
-    data.info.last_sync = 0;
-    data.info.n_wakeup = 0;
-    data.info.not_sent_wakeup = 0;
+    BS_data.info.my_id = my_id;
+    BS_data.info.current_mask = MARMONET_MASK_ID | MARMONET_MASK_PRESSURE | MARMONET_MASK_TEMPERATURE | MARMONET_MASK_HUMIDITY;
+    BS_data.info.last_sync = 0;
+    BS_data.info.n_wakeup = 0;
+    BS_data.info.not_sent_wakeup = 0;
 
     err = bt_enable(NULL);
     if(err)
@@ -556,7 +661,7 @@ int main() {
     // err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad),
     //                     NULL, 0);
 
-    k_work_init(&work_discover, work_discover_cb);
+    // k_work_init(&work_discover, work_discover_cb);
 
 
     err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, scan_callback);
