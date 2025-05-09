@@ -276,10 +276,13 @@ void adv_routine()
 static void update_data()
 {
 
-    
+    data.info.n_wakeup++;
+    data.info.last_sync++;
+
     #if USE_FAIL_SAFE
         fail_safe = last_sync > MAX_TIME_WTHT_SYNC ? true : false; 
     #endif
+    
     //TODO which is more optimal always running this code or the if?
     // if(encounters != my_id || encounters_fails != 0 || (current_mask & MARMONET_MASK_ID) != 0){
 
@@ -303,9 +306,7 @@ static void update_data()
 #endif
 
     data.wakeup_data[data.info.not_sent_wakeup].event_n = data.info.n_wakeup;
-    data.info.n_wakeup++;
     data.info.not_sent_wakeup++;
-    data.info.last_sync++;
 }
 
 /**
