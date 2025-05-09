@@ -36,6 +36,10 @@ K_THREAD_STACK_DEFINE(ble_thread_stack, THREAD_STACK_SIZE);
 static struct k_thread ble_thread;
 k_tid_t ble_thread_id;
 
+K_THREAD_STACK_DEFINE(wakeup_thread_stack, THREAD_STACK_SIZE);
+static struct k_thread wakeup_thread;
+k_tid_t wakeup_thread_id;
+
 #define KEY 0xCA
 #define MAX_DEVICES 8
 
@@ -275,6 +279,7 @@ static uint8_t gatt_read_info_cb(struct bt_conn *conn, uint8_t err,
        }
     }
     // k_sem_give(&my_sem);
+    
     return BT_GATT_ITER_STOP;
 
 }
@@ -552,7 +557,7 @@ void adv_routine()
     if(err) LOG_ERR("Bluetooth adv error %i", err);
 
     //Wait the turn duration
-    k_sleep(K_MSEC(TURN_DURATION));
+    k_sleep(K_MSEC(BS_UPDATE_DURATION));
 
     //Stop the advertise, it will automatically start the scan
     err = bt_le_adv_stop();
@@ -578,16 +583,12 @@ void wakeup_thread_function(void *arg1, void *arg2, void *arg3)
 	
     if (err) LOG_ERR("Scanning failed to start (err %d)", err);
     
-    k_sleep(K_MSEC(TURN_DURATION));
-
-    gpio_pin_toggle_dt(&led_o);
+    k_sleep(K_MSEC(TURN_DURATION*(MAX_DEVICES + 4)));
 
 
-    for(int round = 0; round < MAX_DEVICES; round++){
-        if((1 << round) == my_id) adv_routine();
-        else {k_sleep(K_MSEC(TURN_DURATION));}
-    }
+    adv_routine();
     
+
     err = bt_le_scan_stop();
     
     if(err) LOG_ERR("Bluetooth stop scan error %i", err);
@@ -602,8 +603,8 @@ void wakeup_thread_function(void *arg1, void *arg2, void *arg3)
 void wakeup_callback(struct k_timer *timer)
 {
 
-    k_thread_create(&ble_thread, ble_thread_stack,
-                    K_THREAD_STACK_SIZEOF(ble_thread_stack),
+    k_thread_create(&wakeup_thread, wakeup_thread_stack,
+                    K_THREAD_STACK_SIZEOF(wakeup_thread_stack),
                     wakeup_thread_function, NULL, NULL, NULL,
                     K_PRIO_COOP(7), 0, K_NO_WAIT);
     
@@ -631,15 +632,18 @@ int main() {
     BS_data.info.current_mask = MARMONET_MASK_ID | MARMONET_MASK_PRESSURE | MARMONET_MASK_TEMPERATURE | MARMONET_MASK_HUMIDITY;
     BS_data.info.last_sync = 0;
     BS_data.info.n_wakeup = 0;
-    BS_data.info.not_sent_wakeup = 0;
+    BS_data.info.not_sent_recovered = 0;
+    BS_data.info.not_sent_env = 0;
+
 
     err = bt_enable(NULL);
     if(err)
         LOG_ERR("Bluetooth Error %i", err);
     
-    // k_timer_init(&wakeup_timer, wakeup_callback, NULL);
+    k_timer_init(&wakeup_timer, wakeup_callback, NULL);
 
-    // k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
+    //TODO inicio tem q ter um adiantamento, janela expandida
+    k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
 
     // err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad),
     //                     NULL, 0);
@@ -647,5 +651,5 @@ int main() {
     // k_work_init(&work_discover, work_discover_cb);
 
 
-    err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, scan_callback);
+    // err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, scan_callback);
 }
