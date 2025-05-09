@@ -71,7 +71,7 @@ uint8_t counter_to_debug = 0;
 static ssize_t gatt_read_lat(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			void *buf, uint16_t len, uint16_t offset)
 {
-	const uint8_t value = 0x00;
+	const uint8_t value = 0xAF;
 
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &value,
 				 sizeof(value));
@@ -81,7 +81,9 @@ static ssize_t gatt_read_lat(struct bt_conn *conn, const struct bt_gatt_attr *at
 static ssize_t gatt_write_sync(struct bt_conn *conn, const struct bt_gatt_attr *attr,
             void *buf, uint16_t len, uint16_t offset)
 {
-    k_timer_start(&wakeup_timer, K_MSEC(*((uint32_t*)buf)),  K_MSEC(WAKEUP_PERIOD));
+    k_timer_start(&wakeup_timer, K_MSEC(*((uint8_t*)buf)),  K_MSEC(3*MSEC_PER_SEC));
+
+    LOG_INF("TIMER WRITE");
 
     return len;
 }
@@ -155,13 +157,15 @@ static const struct bt_uuid_128 call_char_info_uuid = BT_UUID_INIT_128(CALLITHRI
 
 
 /* Vendor Primary Service Declaration */
+//TODO Please make it better, to much access to everything
+//TODO Maybe using more chars and srvs to make it more granular I`m using big chunks to make it easier
 BT_GATT_SERVICE_DEFINE(marmonet_svc,
 	BT_GATT_PRIMARY_SERVICE(&call_svc),
         //Char to catch lat using Cristian's algorithm.
         //It send only a byte to avoid miss reading the latency beacuse of processing time
 	    BT_GATT_CHARACTERISTIC(&call_char_sync_lat_uuid.uuid,
-		    	                BT_GATT_CHRC_READ,
-			                    BT_GATT_PERM_READ,
+		    	                BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
+			                    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
 			                    gatt_read_lat, gatt_write_sync, NULL),
 	    //Char to send the data saved in the node
         BT_GATT_CHARACTERISTIC(&call_char_data_uuid.uuid,
@@ -362,6 +366,24 @@ void wakeup_callback(struct k_timer *timer)
     
 }
 
+void blinky_test(void *arg1, void *arg2, void *arg3)
+{
+    LOG_INF("Blinky test");
+    gpio_pin_toggle_dt(&led_o);
+
+}
+
+void blinky_cb(struct k_timer *timer)
+{
+
+    LOG_INF("Blinky Callback");
+    k_thread_create(&ble_thread, ble_thread_stack,
+                    K_THREAD_STACK_SIZEOF(ble_thread_stack),
+                    blinky_test, NULL, NULL, NULL,
+                    K_PRIO_COOP(7), 0, K_NO_WAIT);    
+}
+
+
 
 static void adv_start(struct k_work *work)
 {
@@ -397,11 +419,15 @@ int main() {
         LOG_ERR("Bluetooth Error %i", err);
 
 
-    // k_work_init(&work_adv_start, adv_start);
-	// k_work_submit(&work_adv_start);
+    //Adv for tests
+    k_work_init(&work_adv_start, adv_start);
+	k_work_submit(&work_adv_start);
 
-    k_timer_init(&wakeup_timer, wakeup_callback, NULL);
+    k_timer_init(&wakeup_timer, blinky_cb, NULL);
 
-    k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
+
+    // k_timer_init(&wakeup_timer, wakeup_callback, NULL);
+
+    // k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
 
 }

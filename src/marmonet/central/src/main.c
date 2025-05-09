@@ -11,7 +11,6 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
-#include <hal/nrf_rtc.h>
 
 #include "marmonet_structs.h"
 #include "marmonet_params.h"
@@ -19,8 +18,14 @@
 
 
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/counter.h>
+
+
 #define LED0_NODE DT_ALIAS(led0)
+#define COUNTER_NODE DT_NODELABEL(rtc2)
+
 #define BT_RX_PRIO_STACK_SIZE 1024
+
 
 /**
  * @file This file hold the BS node of the Marmonet project.
@@ -44,7 +49,9 @@ k_tid_t wakeup_thread_id;
 #define MAX_DEVICES 8
 
 static const struct gpio_dt_spec led_o = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-
+const struct device *counter_dev = DEVICE_DT_GET(COUNTER_NODE);
+uint32_t start_ticks;
+uint32_t freq;
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -218,11 +225,51 @@ static uint8_t gatt_read_data_cb(struct bt_conn *conn, uint8_t err,
 
 }
 
+
+uint32_t Cristian_alg(uint32_t timer_1, uint32_t timer_0)
+{
+    return (timer_1 - timer_0)/2;
+}
+
+
+
 static uint8_t gatt_read_sync_lat_cb(struct bt_conn *conn, uint8_t err,
                                 struct bt_gatt_read_params *params,
                                 const void *data, uint16_t length)
 {
+
+    uint32_t now_ticks;
+    counter_get_value(counter_dev, &now_ticks);
+    /*
+        TODO The timer is done in level o milliseconds, but we have 30 micro seconds precision
+        The problem is that we are not sure about the tick compensation used
+        in k_timer and the RTT of our system.
+
+        Future works should explore how is timed this different functions and
+        make it a better implementation.
+    */
+    //Cristian Algorithm
+    uint32_t latency_ticks = ((now_ticks - start_ticks)/2) & 0x00FFFFFF;
+    uint32_t latency_ms = latency_ticks*TICK_RTC_NS/1000000;
+    LOG_INF("LATENCIA %i", latency_ms);
+
+    //TODO in the real system 2* is not needed 
+    //the timers are too far away and no conncetion doesnt exist before a call, only after
+    //The 2* is used to avoid calling things from the past :)
+
+    uint32_t _sync;
     
+    write_params.handle = params->single.handle;
+    write_params.data = &_sync;      // Pointer to the data to send
+    write_params.length = sizeof(_sync); // Data size
+    write_params.func = gatt_write_cb; // Callback for write confirmation
+
+    _sync =  k_timer_remaining_get(&wakeup_timer) - latency_ms + 3000;
+
+    err = bt_gatt_write(conn, &write_params);
+    LOG_DBG("Writing new mask: %i", _sync);
+
+
 }
 
 
@@ -305,29 +352,29 @@ static uint8_t gatt_read_maks_cb(struct bt_conn *conn, uint8_t err,
 
 
 
-static uint8_t gatt_service_discover_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-                                struct bt_gatt_discover_params *params) {
-    LOG_DBG("gatt service discover");
-    if (!attr) {
-        LOG_DBG("Discovery completed");
-        return BT_GATT_ITER_STOP;
-    }
+// static uint8_t gatt_service_discover_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+//                                 struct bt_gatt_discover_params *params) {
+//     LOG_DBG("gatt service discover");
+//     if (!attr) {
+//         LOG_DBG("Discovery completed");
+//         return BT_GATT_ITER_STOP;
+//     }
 
-    LOG_DBG("Discovery ongoing");
-
-
-    struct bt_gatt_service_val *service = (struct bt_gatt_service_val *)attr->user_data;
+//     LOG_DBG("Discovery ongoing");
 
 
-    discover_char_params.uuid = NULL;
-    discover_char_params.func = gatt_char_discover_cb;
-    discover_char_params.start_handle = attr->handle + 1;
-    discover_char_params.end_handle = service->end_handle;
-    discover_char_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
+//     struct bt_gatt_service_val *service = (struct bt_gatt_service_val *)attr->user_data;
 
-    bt_gatt_discover(default_conn, &discover_char_params);
-    return BT_GATT_ITER_STOP;
-}
+
+//     discover_char_params.uuid = NULL;
+//     discover_char_params.func = gatt_char_discover_cb;
+//     discover_char_params.start_handle = attr->handle + 1;
+//     discover_char_params.end_handle = service->end_handle;
+//     discover_char_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
+
+//     bt_gatt_discover(default_conn, &discover_char_params);
+//     return BT_GATT_ITER_STOP;
+// }
 
 static void work_discover_cb(void *arg1, void *arg2, void *arg3)
 {
@@ -335,33 +382,45 @@ static void work_discover_cb(void *arg1, void *arg2, void *arg3)
     BS_data.info.n_wakeup++;
 
 
-    read_params.func = gatt_read_info_cb;
-    read_params.by_uuid.uuid = &call_char_info_uuid;
+
+    read_params.func = gatt_read_sync_lat_cb;
+    read_params.by_uuid.uuid = &call_char_sync_lat_uuid;
     read_params.by_uuid.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
     read_params.by_uuid.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    //Restart the counter before the read to make it more precise
+    counter_get_value(counter_dev, &start_ticks);
+    
     int err = bt_gatt_read(default_conn, &read_params);
 
-    k_sem_take(&my_sem, K_FOREVER);
+    //TODO descomentar
+    // read_params.func = gatt_read_info_cb;
+    // read_params.by_uuid.uuid = &call_char_info_uuid;
+    // read_params.by_uuid.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+    // read_params.by_uuid.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    // int err = bt_gatt_read(default_conn, &read_params);
+
+    // k_sem_take(&my_sem, K_FOREVER);
+
 
     // bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 
 
 
-    LOG_INF("INFO READ: \n id: %i mask: %i data to recover: %i", 
-            BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.my_id,
-            BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.current_mask,
-            BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup);
+    // LOG_INF("INFO READ: \n id: %i mask: %i data to recover: %i", 
+    //         BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.my_id,
+    //         BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.current_mask,
+    //         BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup);
 
-    for(int i = 0; i < events_recovered; i++){
-            LOG_INF("%i: \r\n"
-                    "neighbors: %i \r\n"
-                    "sensors %i %i %i \r\n ", 
-                    i, 
-                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].neighbors_id,
-                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_press,
-                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_humidity,
-                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_temp);
-    }    
+    // for(int i = 0; i < events_recovered; i++){
+    //         LOG_INF("%i: \r\n"
+    //                 "neighbors: %i \r\n"
+    //                 "sensors %i %i %i \r\n ", 
+    //                 i, 
+    //                 BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].neighbors_id,
+    //                 BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_press,
+    //                 BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_humidity,
+    //                 BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_temp);
+    // }    
     
 }
 
@@ -536,6 +595,25 @@ void wakeup_callback(struct k_timer *timer)
     
 }
 
+void blinky_test(void *arg1, void *arg2, void *arg3)
+{
+    LOG_INF("Blinky test");
+    gpio_pin_toggle_dt(&led_o);
+
+}
+
+void blinky_cb(struct k_timer *timer)
+{
+
+    LOG_INF("Blinky Callback");
+    k_thread_create(&wakeup_thread, wakeup_thread_stack,
+                    K_THREAD_STACK_SIZEOF(wakeup_thread_stack),
+                    blinky_test, NULL, NULL, NULL,
+                    K_PRIO_COOP(7), 0, K_NO_WAIT);    
+}
+
+
+
 
 
 
@@ -547,9 +625,17 @@ void wakeup_callback(struct k_timer *timer)
 int main() {
 
 	if (!gpio_is_ready_dt(&led_o)) {
+        LOG_ERR("LED PROBLEM");
 		return 0;
 	}
+    if (!device_is_ready(counter_dev)) {
+        LOG_ERR("COUNTER PROBLEM");
+        return;
+    }
+
     init_bme280();
+    counter_start(counter_dev);
+    uint32_t freq = counter_get_frequency(counter_dev); // usually 32768 Hz
 
 	gpio_pin_configure_dt(&led_o, GPIO_OUTPUT_ACTIVE);
 
@@ -566,16 +652,21 @@ int main() {
     if(err)
         LOG_ERR("Bluetooth Error %i", err);
     
-    k_timer_init(&wakeup_timer, wakeup_callback, NULL);
+    // k_timer_init(&wakeup_timer, wakeup_callback, NULL);
 
     //TODO inicio tem q ter um adiantamento, janela expandida
-    k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
+    // k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(WAKEUP_PERIOD));
 
     // err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad),
     //                     NULL, 0);
 
     // k_work_init(&work_discover, work_discover_cb);
 
+    k_timer_init(&wakeup_timer, blinky_cb, NULL);
+    k_timer_start(&wakeup_timer, K_MSEC(1000),  K_MSEC(3000));
 
-    // err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, scan_callback);
+    k_sleep(K_MSEC(2000));
+
+
+    err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, scan_callback);
 }
