@@ -203,10 +203,10 @@ static uint8_t gatt_read_data_cb(struct bt_conn *conn, uint8_t err,
     }
     if(data){
         // BS_data.data_recovered[BS_data.info.not_sent_wakeup].events[events_recovered] = *(MarmoNet_Event*)data;
-        memcpy(&BS_data.data_recovered[BS_data.info.not_sent_wakeup].events[events_recovered], data, sizeof(MarmoNet_Event));
-        LOG_INF("recover : %i yet to be recovered %i", events_recovered,  BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup);
+        memcpy(&BS_data.data_recovered[BS_data.info.not_sent_recovered].events[events_recovered], data, sizeof(MarmoNet_Event));
+        LOG_INF("recover : %i yet to be recovered %i", events_recovered,  BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup);
         events_recovered++;
-        if(events_recovered < BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup)
+        if(events_recovered < BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup)
             {int err = bt_gatt_read(default_conn, &read_params);}
         else
             k_sem_give(&my_sem);
@@ -222,21 +222,7 @@ static uint8_t gatt_read_sync_lat_cb(struct bt_conn *conn, uint8_t err,
                                 struct bt_gatt_read_params *params,
                                 const void *data, uint16_t length)
 {
-    if (err) {
-        LOG_ERR("GATT read lat failed (err %d)", err);
-        return BT_GATT_ITER_STOP;
-    }
-    if(data){
-       BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info = *(MarmoNet_NodeInfo *)data;
-
-            write_params.handle = params->single.handle;
-            write_params.data = &BS_data.info.current_mask;      // Pointer to the data to send
-            write_params.length = sizeof(BS_data.info.current_mask); // Data size
-            write_params.func = gatt_write_cb; // Callback for write confirmation
-
-            err = bt_gatt_write(conn, &write_params);
-       
-    }
+    
 }
 
 
@@ -250,9 +236,9 @@ static uint8_t gatt_read_info_cb(struct bt_conn *conn, uint8_t err,
         return BT_GATT_ITER_STOP;
     }
     if(data){
-    //    BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info = *(MarmoNet_NodeInfo *)data;
-        memcpy(&BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info, data, sizeof(MarmoNet_NodeInfo));
-        if(BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.current_mask != BS_data.info.current_mask){
+
+        memcpy(&BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info, data, sizeof(MarmoNet_NodeInfo));
+        if(BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.current_mask != BS_data.info.current_mask){
 
             write_params.handle = params->single.handle;
             write_params.data = &BS_data.info.current_mask;      // Pointer to the data to send
@@ -263,11 +249,11 @@ static uint8_t gatt_read_info_cb(struct bt_conn *conn, uint8_t err,
 
             err = bt_gatt_write(conn, &write_params);
        }
-       if(BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup > 0){
+       if(BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup > 0){
 
 
-            BS_data.data_recovered[BS_data.info.not_sent_wakeup].array_size = BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup;
-            BS_data.data_recovered[BS_data.info.not_sent_wakeup].events = malloc(BS_data.data_recovered[BS_data.info.not_sent_wakeup].array_size * sizeof(MarmoNet_Event));
+            BS_data.data_recovered[BS_data.info.not_sent_recovered].array_size = BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup;
+            BS_data.data_recovered[BS_data.info.not_sent_recovered].events = malloc(BS_data.data_recovered[BS_data.info.not_sent_recovered].array_size * sizeof(MarmoNet_Event));
             
             read_params.func = gatt_read_data_cb;
             read_params.by_uuid.uuid = &call_char_data_uuid;
@@ -317,75 +303,6 @@ static uint8_t gatt_read_maks_cb(struct bt_conn *conn, uint8_t err,
     return BT_GATT_ITER_STOP;
 }
 
-static uint8_t gatt_char_discover_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-                                struct bt_gatt_discover_params *params) 
-{
-    if (!attr) {
-        LOG_ERR("Discovery char completed");
-        return BT_GATT_ITER_STOP;
-    }
-    
-    LOG_INF("Discovery char Ongoing");
-
-    struct bt_gatt_chrc *chrc = (struct bt_gatt_chrc *)attr->user_data;
-    
-    switch (chrc->uuid->type)
-    {
-    case BT_UUID_TYPE_16:
-        return BT_GATT_ITER_CONTINUE;
-    
-    case BT_UUID_TYPE_32:
-        return BT_GATT_ITER_CONTINUE;
-
-    
-    case BT_UUID_TYPE_128:
-
-        if(!bt_uuid_cmp(chrc->uuid, &call_char_info_uuid)){
-            LOG_DBG("Found info characteristic");
-            read_params.func = gatt_read_info_cb;
-
-        }else if(!bt_uuid_cmp(chrc->uuid, &call_char_data_uuid)){
-            LOG_DBG("Found data characteristic");
-            read_params.func = gatt_read_data_cb;
-
-        }else if(!bt_uuid_cmp(chrc->uuid, &call_char_sync_lat_uuid)){
-            LOG_DBG("Found sync characteristic");
-            // Stop RTC2
-            nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_STOP);
-
-            // Clear the counter
-            nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_CLEAR);
-
-            // Optionally start again
-            nrf_rtc_task_trigger(NRF_RTC2, NRF_RTC_TASK_START);
-            read_params.func = gatt_read_sync_lat_cb;
-
-        }else
-            return BT_GATT_ITER_CONTINUE;
-
-        break;
-
-    default:
-        return BT_GATT_ITER_CONTINUE;
-
-    }
-    
-    
-    read_params.by_uuid.uuid = &call_char_mask_uuid;
-    read_params.by_uuid.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
-    read_params.by_uuid.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-
-
-    int err = bt_gatt_read(conn, &read_params);
-    if (err) {
-        LOG_ERR("Read request failed (err %d)", err);
-    } else {
-        LOG_INF("Read request sent");
-    }
-
-    return BT_GATT_ITER_CONTINUE;
-
-}
 
 
 static uint8_t gatt_service_discover_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
@@ -431,19 +348,19 @@ static void work_discover_cb(void *arg1, void *arg2, void *arg3)
 
 
     LOG_INF("INFO READ: \n id: %i mask: %i data to recover: %i", 
-            BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.my_id,
-            BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.current_mask,
-            BS_data.data_recovered[BS_data.info.not_sent_wakeup].abi_info.not_sent_wakeup);
+            BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.my_id,
+            BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.current_mask,
+            BS_data.data_recovered[BS_data.info.not_sent_recovered].abi_info.not_sent_wakeup);
 
     for(int i = 0; i < events_recovered; i++){
             LOG_INF("%i: \r\n"
                     "neighbors: %i \r\n"
                     "sensors %i %i %i \r\n ", 
                     i, 
-                    BS_data.data_recovered[BS_data.info.not_sent_wakeup].events[i].neighbors_id,
-                    BS_data.data_recovered[BS_data.info.not_sent_wakeup].events[i].enviroment.comp_press,
-                    BS_data.data_recovered[BS_data.info.not_sent_wakeup].events[i].enviroment.comp_humidity,
-                    BS_data.data_recovered[BS_data.info.not_sent_wakeup].events[i].enviroment.comp_temp);
+                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].neighbors_id,
+                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_press,
+                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_humidity,
+                    BS_data.data_recovered[BS_data.info.not_sent_recovered].events[i].enviroment.comp_temp);
     }    
     
 }
@@ -523,19 +440,9 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
     gpio_pin_toggle_dt(&led_o);
 
 
-#if USE_BMX
-    err = fetch_bme280();
-
-    if(!err)
-    {
-        BS_data.data_recovered[BS_data.info.not_sent_wakeup].bs_enviroment.comp_press = BS_data.info.current_mask & MARMONET_MASK_PRESSURE ? get_pressure() : 0;
-        BS_data.data_recovered[BS_data.info.not_sent_wakeup].bs_enviroment.comp_humidity = BS_data.info.current_mask & MARMONET_MASK_HUMIDITY ? get_humidity() : 0;
-        BS_data.data_recovered[BS_data.info.not_sent_wakeup].bs_enviroment.comp_temp = BS_data.info.current_mask & MARMONET_MASK_TEMPERATURE ? get_temperature() : 0;
-    }
-#endif
-    BS_data.data_recovered[BS_data.info.not_sent_wakeup].array_size = events_recovered;
-    BS_data.info.not_sent_wakeup++;
-    BS_data.info.last_sync++;
+    BS_data.data_recovered[BS_data.info.not_sent_recovered].array_size = events_recovered;
+    events_recovered = 0;
+    BS_data.info.not_sent_recovered++;
 
     
 
@@ -565,10 +472,29 @@ void adv_routine()
 }
 
 
+
+
 /**
  * @section DATA HANDLING
 */
+void update_data()
+{
+    //SEPARAR ISSO PARA OUTRA FUNCAO EM OUTROS LOCAIS
+#if USE_BMX
+    err = fetch_bme280();
 
+    if(!err)
+    {
+        BS_data.bs_enviroment[BS_data.info.not_sent_env].enviroment.comp_press = BS_data.info.current_mask & MARMONET_MASK_PRESSURE ? get_pressure() : 0;
+        BS_data.bs_enviroment[BS_data.info.not_sent_env].enviroment.comp_humidity = BS_data.info.current_mask & MARMONET_MASK_HUMIDITY ? get_humidity() : 0;
+        BS_data.bs_enviroment[BS_data.info.not_sent_env].enviroment.comp_temp = BS_data.info.current_mask & MARMONET_MASK_TEMPERATURE ? get_temperature() : 0;
+        BS_data.bs_enviroment[BS_data.info.not_sent_env].event_n = BS_data.info.n_wakeup;
+    }
+#endif
+    BS_data.info.last_sync++;
+    BS_data.info.not_sent_env++;
+
+}
 
 
 /**

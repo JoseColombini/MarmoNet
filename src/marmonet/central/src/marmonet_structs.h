@@ -107,6 +107,17 @@ typedef struct  _MarmoNet__NodeInfo
 
 }MarmoNet_NodeInfo;
 
+typedef struct  
+{
+  uint8_t my_id;  //ID of the node
+  uint16_t n_wakeup; //How many data were collected
+  uint8_t not_sent_recovered; //the nmber of data that were not recovered (work as index for the data array)
+  uint8_t not_sent_env;
+  uint8_t current_mask; //The current mask of data to be collected
+  uint16_t last_sync; //Last time the node was synchronized
+
+}MarmoNet_BSInfo;
+
 typedef struct  _MarmoNet__CallithrixData
 {
   MarmoNet_NodeInfo info;
@@ -119,7 +130,6 @@ typedef struct
 {
   MarmoNet_NodeInfo abi_info;
   uint16_t bs_event_n;
-  struct bme280_reading bs_enviroment;
 
   uint8_t array_size;
 
@@ -139,7 +149,18 @@ typedef struct _MarmoNet__BS_Collection
 
 typedef struct 
 {
-  MarmoNet_NodeInfo info;
+  struct bme280_reading enviroment;
+
+  uint32_t event_n;
+
+}MarmoNet_BS_Enviroment;
+
+
+typedef struct 
+{
+  MarmoNet_BSInfo info;
+
+  MarmoNet_BS_Enviroment bs_enviroment[100];
 
   MarmoNet_data_recover data_recovered[100];
 
