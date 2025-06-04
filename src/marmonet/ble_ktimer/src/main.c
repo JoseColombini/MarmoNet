@@ -81,8 +81,11 @@ static ssize_t gatt_read_lat(struct bt_conn *conn, const struct bt_gatt_attr *at
 static ssize_t gatt_write_sync(struct bt_conn *conn, const struct bt_gatt_attr *attr,
             void *buf, uint16_t len, uint16_t offset)
 {
-    k_timer_start(&wakeup_timer, K_MSEC(*((uint8_t*)buf)),  K_MSEC(3*MSEC_PER_SEC));
+    // uint32_t value;
+    // memcpy(&value, buf, sizeof(value));
 
+    k_timer_start(&wakeup_timer, K_MSEC(value),  K_MSEC(3*MSEC_PER_SEC));
+    LOG_INF("TIMER %i", value);
     LOG_INF("TIMER WRITE");
 
     return len;
