@@ -22,10 +22,24 @@
 
 
 #define LED0_NODE DT_ALIAS(led0)
-#define COUNTER_NODE DT_NODELABEL(rtc2)
+// #define COUNTER_NODE DT_NODELABEL(rtc2)
 
 #define BT_RX_PRIO_STACK_SIZE 1024
 
+
+/**
+ * TODO
+ * Test Env notify
+ * Elaborate better the data recover struct using byte array
+ * Refactor - break it down in multiple files, incraese readability
+ * See the ideia of using indicator vs notify
+ * Read notify from the node to recover data fast
+ * Increase MTU
+ * Put all data recovery in the same UUID (node and environment)
+ * Solve the error of **No SOURCES given to Zephyr library: drivers__counter** when compiling
+ *      Solution is my old computer, config in dts of pulga the rtc
+ *      Uncommect the counter_dev and all realted things
+ */
 
 /**
  * @file This file hold the BS node of the Marmonet project.
@@ -49,7 +63,7 @@ k_tid_t wakeup_thread_id;
 #define MAX_DEVICES 8
 
 static const struct gpio_dt_spec led_o = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-const struct device *counter_dev = DEVICE_DT_GET(COUNTER_NODE);
+// const struct device *counter_dev = DEVICE_DT_GET(COUNTER_NODE);
 uint32_t start_ticks;
 uint32_t freq;
 
@@ -239,7 +253,7 @@ static uint8_t gatt_read_sync_lat_cb(struct bt_conn *conn, uint8_t err,
 {
 
     uint32_t now_ticks;
-    counter_get_value(counter_dev, &now_ticks);
+    // counter_get_value(counter_dev, &now_ticks);
     /*
         TODO The timer is done in level o milliseconds, but we have 30 micro seconds precision
         The problem is that we are not sure about the tick compensation used
@@ -388,7 +402,7 @@ static void work_discover_cb(void *arg1, void *arg2, void *arg3)
     read_params.by_uuid.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
     read_params.by_uuid.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
     //Restart the counter before the read to make it more precise
-    counter_get_value(counter_dev, &start_ticks);
+    // counter_get_value(counter_dev, &start_ticks);
     
     int err = bt_gatt_read(default_conn, &read_params);
 
@@ -628,14 +642,14 @@ int main() {
         LOG_ERR("LED PROBLEM");
 		return 0;
 	}
-    if (!device_is_ready(counter_dev)) {
-        LOG_ERR("COUNTER PROBLEM");
-        return;
-    }
+    // if (!device_is_ready(counter_dev)) {
+    //     LOG_ERR("COUNTER PROBLEM");
+    //     return;
+    // }
 
     init_bme280();
-    counter_start(counter_dev);
-    uint32_t freq = counter_get_frequency(counter_dev); // usually 32768 Hz
+    // counter_start(counter_dev);
+    // uint32_t freq = counter_get_frequency(counter_dev); // usually 32768 Hz
 
 	gpio_pin_configure_dt(&led_o, GPIO_OUTPUT_ACTIVE);
 
