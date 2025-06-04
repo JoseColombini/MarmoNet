@@ -100,6 +100,10 @@ static struct bt_gatt_write_params write_params;
 static struct k_work work_discover;
 
 
+//Notify
+bool env_notify;
+
+
 /**
  * @section BLE GATT
 */
@@ -110,14 +114,22 @@ static struct k_work work_discover;
 static ssize_t gatt_read_lat(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			void *buf, uint16_t len, uint16_t offset)
 {
+	const uint8_t value = 0xAF;
 
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &value,
+				 sizeof(value));
 }
 
 //Write the sync time to the nextwake up
 static ssize_t gatt_write_sync(struct bt_conn *conn, const struct bt_gatt_attr *attr,
             void *buf, uint16_t len, uint16_t offset)
 {
-    k_timer_start(&wakeup_timer, K_MSEC(*((uint32_t*)buf)),  K_MSEC(WAKEUP_PERIOD));
+    uint32_t value;
+    memcpy(&value, buf, sizeof(value));
+
+    k_timer_start(&wakeup_timer, K_MSEC(value),  K_MSEC(3*MSEC_PER_SEC));
+    LOG_INF("TIMER %i", value);
+    LOG_INF("TIMER WRITE");
 
     return len;
 }
@@ -130,7 +142,9 @@ static ssize_t gatt_write_sync(struct bt_conn *conn, const struct bt_gatt_attr *
 static ssize_t gatt_read_mask(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			void *buf, uint16_t len, uint16_t offset)
 {
-
+    printk("mask reading %i\n", BS_data.info.current_mask);
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &(BS_data.info.current_mask),
+                            sizeof(BS_data.info.current_mask));
 }
 
 //SET NEW MASK
@@ -144,10 +158,35 @@ ssize_t gatt_write_new_mask(struct bt_conn *conn, const struct bt_gatt_attr *att
     READ AND RECOVER DATA
 */
 
-static ssize_t gatt_read_data(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+static ssize_t gatt_read_data_node(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			void *buf, uint16_t len, uint16_t offset)
 {
 
+}
+
+static ssize_t gatt_read_data_env(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+			void *buf, uint16_t len, uint16_t offset)
+{
+    uint8_t* index = &BS_data.info.not_sent_env;
+    if(*index > 0)
+    {
+        *index = *index - 1;
+        return bt_gatt_attr_read(conn, attr, buf, len, offset,
+                                &(BS_data.bs_enviroment[*index]), 
+                                sizeof(MarmoNet_BS_Enviroment));
+    }
+
+    MarmoNet_BS_Enviroment env = {
+        .enviroment = {
+            .comp_temp = 0,
+            .comp_press = 0,
+            .comp_humidity = 0
+        },
+        .event_n = UINT32_MAX
+    };   
+    return bt_gatt_attr_read(conn, attr, buf, len, offset, 
+                            &(BS_data.bs_enviroment[BS_data.info.not_sent_env]),
+                            sizeof(MarmoNet_BS_Enviroment));
 }
 
 /*
@@ -157,6 +196,25 @@ static ssize_t gatt_read_inf(struct bt_conn *conn, const struct bt_gatt_attr *at
             void *buf, uint16_t len, uint16_t offset)
 {
 
+    return bt_gatt_attr_read(conn, attr, buf, len, offset, &(BS_data.info),
+                            sizeof(BS_data.info));
+}
+
+
+void Env_thread_upload(void *arg1, void *arg2, void *arg3);
+
+
+static void Env_ccc_cfg_changed(const struct bt_gatt_attr *attr,
+				 uint16_t value)
+{
+	// env_notify = value == BT_GATT_CCC_NOTIFY;
+    
+    if(value == BT_GATT_CCC_NOTIFY)
+        k_thread_create(&wakeup_thread, wakeup_thread_stack,
+                    K_THREAD_STACK_SIZEOF(wakeup_thread_stack),
+                    Env_thread_upload, NULL, NULL, NULL,
+                    K_PRIO_COOP(7), 0, K_NO_WAIT);
+
 }
 
 
@@ -165,7 +223,9 @@ static ssize_t gatt_read_inf(struct bt_conn *conn, const struct bt_gatt_attr *at
 */
 static const struct bt_uuid_128 call_svc = BT_UUID_INIT_128(CALLITHRIX_SVC_UUID);
 static const struct bt_uuid_128 call_char_sync_lat_uuid = BT_UUID_INIT_128(CALLITHRIX_CHR_SYNC_LAT_UUID);
-static const struct bt_uuid_128 call_char_data_uuid = BT_UUID_INIT_128(CALLITHRIX_CHR_DATA_TRANSFER);
+static const struct bt_uuid_128 call_char_data_node_uuid = BT_UUID_INIT_128(CALLITHRIX_CHR_DATA_NODE);
+static const struct bt_uuid_128 call_char_data_env_uuid = BT_UUID_INIT_128(CALLITHRIX_CHR_DATA_ENV);
+
 static const struct bt_uuid_128 call_char_mask_uuid = BT_UUID_INIT_128(CALLITRHIX_CHR_SENSOR_MASK);
 static const struct bt_uuid_128 call_char_info_uuid = BT_UUID_INIT_128(CALLITHRIX_CHR_STATUS_UUID);
 
@@ -173,18 +233,28 @@ static const struct bt_uuid_128 call_char_info_uuid = BT_UUID_INIT_128(CALLITHRI
 /* Vendor Primary Service Declaration */
 BT_GATT_SERVICE_DEFINE(marmonet_svc,
 	BT_GATT_PRIMARY_SERVICE(&call_svc),
+
         //Char to catch lat using Cristian's algorithm.
         //It send only a byte to avoid miss reading the latency beacuse of processing time
 	    BT_GATT_CHARACTERISTIC(&call_char_sync_lat_uuid.uuid,
 		    	                BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
 			                    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
 			                    gatt_read_lat, gatt_write_sync, NULL),
+
 	    //Char to send the data saved in the node
-        BT_GATT_CHARACTERISTIC(&call_char_data_uuid.uuid,
+        BT_GATT_CHARACTERISTIC(&call_char_data_node_uuid.uuid,
 		    	                BT_GATT_CHRC_READ,
 			                    BT_GATT_PERM_READ,
-			                    gatt_read_data, NULL, NULL),
-	    //Used to set a mask in the node
+			                    gatt_read_data_node, NULL, NULL),
+
+        BT_GATT_CHARACTERISTIC(&call_char_data_env_uuid.uuid,
+		    	                BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
+			                    BT_GATT_PERM_READ,
+			                    gatt_read_data_env, NULL, NULL),
+	        BT_GATT_CCC(Env_ccc_cfg_changed,
+		        BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+        
+            //Used to set a mask in the node
         BT_GATT_CHARACTERISTIC(&call_char_mask_uuid.uuid,
 		    	                BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
 			                    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
@@ -196,6 +266,21 @@ BT_GATT_SERVICE_DEFINE(marmonet_svc,
 			                    gatt_read_inf, NULL, NULL),
 );
 
+void Env_thread_upload(void *arg1, void *arg2, void *arg3)
+{
+
+    //TODO optimize it by hardcoding the attrs
+	struct bt_gatt_attr *notify_crch =
+		bt_gatt_find_by_uuid(marmonet_svc.attrs, 0xffff, &call_char_data_env_uuid.uuid);
+
+    for(;BS_data.info.not_sent_env > 0; BS_data.info.not_sent_env--)
+    {
+        bt_gatt_notify(default_conn, notify_crch, &(BS_data.bs_enviroment[BS_data.info.not_sent_env - 1]), sizeof(MarmoNet_BS_Enviroment));
+
+    }
+
+
+}
 
 
 /**
@@ -317,7 +402,7 @@ static uint8_t gatt_read_info_cb(struct bt_conn *conn, uint8_t err,
             BS_data.data_recovered[BS_data.info.not_sent_recovered].events = malloc(BS_data.data_recovered[BS_data.info.not_sent_recovered].array_size * sizeof(MarmoNet_Event));
             
             read_params.func = gatt_read_data_cb;
-            read_params.by_uuid.uuid = &call_char_data_uuid;
+            read_params.by_uuid.uuid = &call_char_data_node_uuid;
             read_params.by_uuid.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
             read_params.by_uuid.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
 
