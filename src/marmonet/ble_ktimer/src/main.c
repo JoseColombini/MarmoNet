@@ -188,7 +188,6 @@ BT_GATT_SERVICE_DEFINE(marmonet_svc,
 );
 
 
-
 /**
  * @section BLE ROUTINES
 */
